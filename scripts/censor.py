@@ -46,7 +46,6 @@ def check_safety(images_np, prompt="", disable_safety=False, sensitivity=0.5):
 
     nsfw_flags = []
     for img in images_np:
-        # Convert to PIL and preprocess
         pil_img = Image.fromarray((img*255).astype(np.uint8))
         inputs = safety_feature_extractor(images=pil_img, return_tensors="pt")
         outputs = safety_model(**inputs)
@@ -67,22 +66,21 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
         if flag:
             if replacement == "blur":
                 img = Image.fromarray((x_np[i]*255).astype(np.uint8))
-                # Stronger blur
-                blurred = img.filter(ImageFilter.GaussianBlur(radius=30))
+                blurred = img.filter(ImageFilter.GaussianBlur(radius=40))  # stronger blur
 
-                # Draw bold red "NSFW" text
+                # Draw bold red "CENSOR" text
                 draw = ImageDraw.Draw(blurred)
                 try:
-                    font = ImageFont.truetype("arial.ttf", max(80, blurred.width // 10))
+                    font = ImageFont.truetype("arial.ttf", max(100, blurred.width // 8))
                 except:
                     font = ImageFont.load_default()
-                text = "NSFW"
+                text = "NSFW DETECTED"
                 text_width, text_height = draw.textsize(text, font=font)
                 x_pos = (blurred.width - text_width) // 2
                 y_pos = (blurred.height - text_height) // 2
 
-                # Make text bolder by drawing multiple offsets
-                offsets = [(-1,-1),(1,-1),(-1,1),(1,1),(0,0)]
+                # Bold by drawing multiple offsets
+                offsets = [(-2,-2),(2,-2),(-2,2),(2,2),(0,0)]
                 for ox, oy in offsets:
                     draw.text((x_pos+ox, y_pos+oy), text, fill=(255,0,0), font=font)
 
@@ -96,6 +94,7 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
                     x_np[i] = replacement
 
     return torch.from_numpy(x_np).permute(0,3,1,2)
+
 class AnimeNsfwCheckScript(scripts.Script):
     def title(self):
         return "Anime NSFW Check"
@@ -106,14 +105,9 @@ class AnimeNsfwCheckScript(scripts.Script):
     def postprocess_batch(self, p, *args, **kwargs):
         images = kwargs['images']
 
+        # NSFW toggle for channels
         disable_safety = getattr(p, 'allow_nsfw', False)
-        sensitivity = getattr(p, 'nsfw_sensitivity', 0.5)
+        sensitivity = getattr(p, 'nsfw_sensitivity', 0.9)
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
-
-
-
-
-
-
