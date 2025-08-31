@@ -1,6 +1,6 @@
 import torch
 from transformers import AutoFeatureExtractor, AutoModelForImageClassification
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageDraw, ImageFont
 import numpy as np
 from modules import scripts
 
@@ -107,5 +107,6 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
 
