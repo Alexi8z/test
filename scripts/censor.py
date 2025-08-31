@@ -67,6 +67,19 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
             if replacement == "blur":
                 img = Image.fromarray((x_np[i]*255).astype(np.uint8))
                 blurred = img.filter(ImageFilter.GaussianBlur(radius=15))
+
+                # Draw red "NSFW" text over the image
+                draw = ImageDraw.Draw(blurred)
+                try:
+                    font = ImageFont.truetype("arial.ttf", max(20, blurred.width // 15))
+                except:
+                    font = ImageFont.load_default()
+                text = "NSFW"
+                text_width, text_height = draw.textsize(text, font=font)
+                x_pos = (blurred.width - text_width) // 2
+                y_pos = (blurred.height - text_height) // 2
+                draw.text((x_pos, y_pos), text, fill=(255,0,0), font=font)
+
                 x_np[i] = np.array(blurred)/255.0
             elif isinstance(replacement, (Image.Image, np.ndarray, torch.Tensor)):
                 if isinstance(replacement, torch.Tensor):
@@ -93,3 +106,4 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
