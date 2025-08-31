@@ -5,7 +5,7 @@ import numpy as np
 from modules import scripts
 
 # NSFW classifier (general, works for anime too in combination with prompt keywords)
-NSFW_MODEL_ID = "prithivMLmods/vit-mini-explicit-content"
+NSFW_MODEL_ID = "CompVis/stable-diffusion-safety-checker"
 
 # List of explicit anime keywords for prompt-based filtering
 NSFW_KEYWORDS = [
@@ -111,6 +111,7 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
 
 
