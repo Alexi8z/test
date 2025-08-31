@@ -67,19 +67,24 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
         if flag:
             if replacement == "blur":
                 img = Image.fromarray((x_np[i]*255).astype(np.uint8))
-                blurred = img.filter(ImageFilter.GaussianBlur(radius=15))
+                # Stronger blur
+                blurred = img.filter(ImageFilter.GaussianBlur(radius=30))
 
-                # Draw red "NSFW" text over the image
+                # Draw bold red "NSFW" text
                 draw = ImageDraw.Draw(blurred)
                 try:
-                    font = ImageFont.truetype("arial.ttf", max(20, blurred.width // 15))
+                    font = ImageFont.truetype("arial.ttf", max(40, blurred.width // 10))
                 except:
                     font = ImageFont.load_default()
                 text = "NSFW"
                 text_width, text_height = draw.textsize(text, font=font)
                 x_pos = (blurred.width - text_width) // 2
                 y_pos = (blurred.height - text_height) // 2
-                draw.text((x_pos, y_pos), text, fill=(255,0,0), font=font)
+
+                # Make text bolder by drawing multiple offsets
+                offsets = [(-1,-1),(1,-1),(-1,1),(1,1),(0,0)]
+                for ox, oy in offsets:
+                    draw.text((x_pos+ox, y_pos+oy), text, fill=(255,0,0), font=font)
 
                 x_np[i] = np.array(blurred)/255.0
             elif isinstance(replacement, (Image.Image, np.ndarray, torch.Tensor)):
@@ -91,7 +96,6 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
                     x_np[i] = replacement
 
     return torch.from_numpy(x_np).permute(0,3,1,2)
-
 class AnimeNsfwCheckScript(scripts.Script):
     def title(self):
         return "Anime NSFW Check"
@@ -107,6 +111,7 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
 
 
