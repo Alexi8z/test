@@ -92,7 +92,8 @@ class AnimeNsfwCheckScript(scripts.Script):
         images = kwargs['images']
 
         disable_safety = getattr(p, 'allow_nsfw', False)
-        sensitivity = getattr(p, 'nsfw_sensitivity', 0.5)
+        sensitivity = getattr(p, 'nsfw_sensitivity', 0.3)
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity)[:]
+
