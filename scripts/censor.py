@@ -25,9 +25,6 @@ def numpy_to_pil(images):
     return [Image.fromarray(image) for image in images]
 
 def check_safety(x_image, prompt="", disable_safety=False, sensitivity=0.5):
-    """
-    Returns NSFW flags but does NOT replace the image with black.
-    """
     global safety_feature_extractor, safety_checker
     if disable_safety:
         return [False]*len(x_image)
@@ -35,18 +32,20 @@ def check_safety(x_image, prompt="", disable_safety=False, sensitivity=0.5):
     # Prompt keyword detection
     prompt_flag = any(kw.lower() in prompt.lower() for kw in NSFW_KEYWORDS)
 
-    # Initialize model if needed
     if safety_feature_extractor is None:
         safety_feature_extractor = AutoFeatureExtractor.from_pretrained(safety_model_id)
         safety_checker = StableDiffusionSafetyChecker.from_pretrained(safety_model_id)
 
     inputs = safety_feature_extractor(numpy_to_pil(x_image), return_tensors="pt")
-    _, has_nsfw_concept = safety_checker(images=x_image, clip_input=inputs.pixel_values)
+    x_checked, has_nsfw_concept = safety_checker(images=x_image, clip_input=inputs.pixel_values)
+
+    # Apply sensitivity threshold
+    has_nsfw_concept = [bool(hc > sensitivity) for hc in has_nsfw_concept]
 
     # Combine keyword flag
-    has_nsfw_concept = [bool(hc or prompt_flag) for hc in has_nsfw_concept]
+    final_flags = [hc or prompt_flag for hc in has_nsfw_concept]
 
-    return has_nsfw_concept
+    return final_flags
 
 def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5):
     """
@@ -96,4 +95,5 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity)[:]
+
 
