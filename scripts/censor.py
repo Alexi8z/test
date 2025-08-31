@@ -6,7 +6,7 @@ from modules import scripts, shared
 import numpy as np
 
 # Anime-focused NSFW model
-safety_model_id = "prithivMLmods/vit-mini-explicit-content"
+safety_model_id = "UnfilteredAI/NSFW-GEN-ANIME"
 
 safety_feature_extractor = None
 safety_checker = None
@@ -68,3 +68,4 @@ class AnimeNsfwCheckScript(scripts.Script):
         sensitivity = getattr(p, 'nsfw_sensitivity', 0.6)
 
         images[:] = censor_batch(images, disable_safety=disable_safety, sensitivity=sensitivity)[:]
+
