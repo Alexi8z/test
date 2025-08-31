@@ -11,7 +11,7 @@ NSFW_MODEL_ID = "CompVis/stable-diffusion-safety-checker"
 NSFW_KEYWORDS = [
     "nude", "nsfw", "pussy", "breasts", "hentai", "sex", "nipples",
     "1girl naked", "1boy naked", "naked", "erotic", "cum", "dick",
-    "pussy", "lewd", "cumming", "sex", "porn", "no top", "open jacket", "shirtless", "bare chest", "underboob", "cleavage", "no panties"
+    "pussy", "lewd", "cumming", "sex", "porn", "no top", "open jacket", "shirtless", "bare chest", "underboob", "cleavage", "no panties", "penis"
 ]
 
 # Initialize global model
@@ -111,4 +111,5 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
