@@ -9,7 +9,7 @@ import requests
 from io import BytesIO
 
 # ---------------- Settings ----------------
-safety_model_id = "prithivMLmods/vit-mini-explicit-content"
+safety_model_id = "strangerguardhf/nsfw_image_detection"
 NSFW_THRESHOLD = 0.95  # Higher = less sensitive
 CUSTOM_IMAGE_URL = "https://cdn.discordapp.com/attachments/1294630750900977695/1411673768773816370/ewapolmkwgrniom.jpg?ex=68b58326&is=68b431a6&hm=9a6f7782b24246d0650a7ca25d687782a876efc0588fd07eedd7a2921104e6a3&"
 
@@ -82,6 +82,7 @@ class NsfwCheckScript(scripts.Script):
     def postprocess_batch(self, p, *args, **kwargs):
         images = kwargs['images']
         images[:] = censor_batch(images)[:]
+
 
 
 
