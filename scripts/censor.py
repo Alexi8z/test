@@ -1,22 +1,23 @@
 import torch
-from transformers import AutoFeatureExtractor, AutoModelForImageClassification
+from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
+from transformers import AutoFeatureExtractor
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
 import numpy as np
 from modules import scripts
 
-# NSFW classifier (general, works for anime too in combination with prompt keywords)
-NSFW_MODEL_ID = "CompVis/stable-diffusion-safety-checker"
+# Default SD safety checker
+safety_model_id = "CompVis/stable-diffusion-safety-checker"
 
-# List of explicit anime keywords for prompt-based filtering
+# Anime NSFW prompt keywords
 NSFW_KEYWORDS = [
     "nude", "nsfw", "pussy", "breasts", "hentai", "sex", "nipples",
     "1girl naked", "1boy naked", "naked", "erotic", "cum", "dick",
-    "pussy", "lewd", "cumming", "sex", "porn", "no top", "open jacket", "shirtless", "bare chest", "underboob", "cleavage", "no panties", "penis"
+    "pussy", "lewd", "cumming", "sex", "porn", "open jacket", "no top",
+    "no panties", "bare chest"
 ]
 
-# Initialize global model
 safety_feature_extractor = None
-safety_model = None
+safety_checker = None
 
 def numpy_to_pil(images):
     if images.ndim == 3:
@@ -24,74 +25,66 @@ def numpy_to_pil(images):
     images = (images * 255).round().astype("uint8")
     return [Image.fromarray(image) for image in images]
 
-def check_safety(images_np, prompt="", disable_safety=False, sensitivity=0.5):
+def check_safety(x_image, prompt="", disable_safety=False, sensitivity=0.5):
     """
-    images_np: numpy array [B,H,W,C] range 0-1
-    prompt: string prompt for additional keyword check
-    disable_safety: bypass NSFW check (NSFW channel)
-    sensitivity: float [0-1], threshold for NSFW classifier
+    x_image: numpy array batch HWC [0-1]
+    prompt: string prompt for keyword checks
+    disable_safety: True if NSFW filtering should be skipped (e.g. NSFW channel)
+    sensitivity: float [0-1], threshold for safety checker
     """
-    global safety_feature_extractor, safety_model
-
+    global safety_feature_extractor, safety_checker
     if disable_safety:
-        return [False] * len(images_np)
+        return [False]*len(x_image)
 
     # Keyword-based detection
     prompt_flag = any(kw.lower() in prompt.lower() for kw in NSFW_KEYWORDS)
 
-    # Initialize classifier
+    # Initialize safety checker
     if safety_feature_extractor is None:
-        safety_feature_extractor = AutoFeatureExtractor.from_pretrained(NSFW_MODEL_ID)
-        safety_model = AutoModelForImageClassification.from_pretrained(NSFW_MODEL_ID)
+        safety_feature_extractor = AutoFeatureExtractor.from_pretrained(safety_model_id)
+        safety_checker = StableDiffusionSafetyChecker.from_pretrained(safety_model_id)
 
-    nsfw_flags = []
-    for img in images_np:
-        pil_img = Image.fromarray((img*255).astype(np.uint8))
-        inputs = safety_feature_extractor(images=pil_img, return_tensors="pt")
-        outputs = safety_model(**inputs)
-        probs = torch.nn.functional.softmax(outputs.logits, dim=1)
-        nsfw_score = probs[0][1].item()  # Assuming class 1 = NSFW
-        nsfw_flags.append(nsfw_score > sensitivity or prompt_flag)
+    inputs = safety_feature_extractor(numpy_to_pil(x_image), return_tensors="pt")
+    x_checked_image, has_nsfw_concept = safety_checker(images=x_image, clip_input=inputs.pixel_values)
 
-    return nsfw_flags
+    # Apply sensitivity threshold and combine with prompt keyword check
+    has_nsfw_concept = [bool(hc > sensitivity) or prompt_flag for hc in has_nsfw_concept]
 
-def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacement="blur"):
+    return x_checked_image, has_nsfw_concept
+
+def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5):
     """
     x: torch tensor [B,C,H,W] range 0-1
+    Replaces NSFW images with strong blur + bold red NSFW text
     """
     x_np = x.cpu().permute(0,2,3,1).numpy()
-    nsfw_flags = check_safety(x_np, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity)
+    x_checked, nsfw_flags = check_safety(x_np, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity)
 
     for i, flag in enumerate(nsfw_flags):
         if flag:
-            if replacement == "blur":
-                img = Image.fromarray((x_np[i]*255).astype(np.uint8))
-                blurred = img.filter(ImageFilter.GaussianBlur(radius=40))  # stronger blur
+            img = Image.fromarray((x_checked[i]*255).astype(np.uint8))
+            # Strong blur
+            blurred = img.filter(ImageFilter.GaussianBlur(radius=40))
 
-                # Draw bold red "CENSOR" text
-                draw = ImageDraw.Draw(blurred)
-                try:
-                    font = ImageFont.truetype("arial.ttf", max(100, blurred.width // 8))
-                except:
-                    font = ImageFont.load_default()
-                text = "NSFW DETECTED"
-                text_width, text_height = draw.textsize(text, font=font)
-                x_pos = (blurred.width - text_width) // 2
-                y_pos = (blurred.height - text_height) // 2
+            # Draw bold red NSFW text
+            draw = ImageDraw.Draw(blurred)
+            try:
+                font_size = max(80, blurred.width // 5)
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                font = ImageFont.load_default()
 
-                # Bold by drawing multiple offsets
-                offsets = [(-2,-2),(2,-2),(-2,2),(2,2),(0,0)]
-                for ox, oy in offsets:
-                    draw.text((x_pos+ox, y_pos+oy), text, fill=(255,0,0), font=font)
+            text = "NSFW"
+            text_width, text_height = draw.textsize(text, font=font)
+            x_pos = (blurred.width - text_width) // 2
+            y_pos = (blurred.height - text_height) // 2
 
-                x_np[i] = np.array(blurred)/255.0
-            elif isinstance(replacement, (Image.Image, np.ndarray, torch.Tensor)):
-                if isinstance(replacement, torch.Tensor):
-                    x_np[i] = replacement.cpu().permute(1,2,0).numpy()
-                elif isinstance(replacement, Image.Image):
-                    x_np[i] = np.array(replacement)/255.0
-                elif isinstance(replacement, np.ndarray):
-                    x_np[i] = replacement
+            # Bold by drawing multiple offsets
+            offsets = [(-2,-2),(2,-2),(-2,2),(2,2),(0,0)]
+            for ox, oy in offsets:
+                draw.text((x_pos+ox, y_pos+oy), text, fill=(255,0,0), font=font)
+
+            x_np[i] = np.array(blurred)/255.0
 
     return torch.from_numpy(x_np).permute(0,3,1,2)
 
@@ -105,11 +98,9 @@ class AnimeNsfwCheckScript(scripts.Script):
     def postprocess_batch(self, p, *args, **kwargs):
         images = kwargs['images']
 
-        # NSFW toggle for channels
+        # NSFW toggle and sensitivity
         disable_safety = getattr(p, 'allow_nsfw', False)
-        sensitivity = getattr(p, 'nsfw_sensitivity', 0.9)
+        sensitivity = getattr(p, 'nsfw_sensitivity', 0.5)
         prompt = getattr(p, 'prompt', "")
 
-        images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
-
-
+        images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity)[:]
