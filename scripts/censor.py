@@ -8,12 +8,15 @@ from modules import scripts
 import requests
 from io import BytesIO
 
-# ----- Settings -----
+# ---------------- Settings ----------------
 safety_model_id = "CompVis/stable-diffusion-safety-checker"
-NSFW_THRESHOLD = 0.95 # set higher to be less sensitive
+NSFW_THRESHOLD = 0.95  # Higher = less sensitive
 CUSTOM_IMAGE_URL = "https://cdn.discordapp.com/attachments/1294630750900977695/1411673768773816370/ewapolmkwgrniom.jpg?ex=68b58326&is=68b431a6&hm=9a6f7782b24246d0650a7ca25d687782a876efc0588fd07eedd7a2921104e6a3&"
 
-# ----- Global variables -----
+# Toggle NSFW check dynamically
+ENABLE_NSFW_CHECK = True  # Set False to allow NSFW content
+
+# ---------------- Global variables ----------------
 safety_feature_extractor = None
 safety_checker = None
 
@@ -21,7 +24,7 @@ safety_checker = None
 response = requests.get(CUSTOM_IMAGE_URL)
 custom_image_pil = Image.open(BytesIO(response.content)).convert("RGB")
 
-# ----- Helper functions -----
+# ---------------- Helper functions ----------------
 def numpy_to_pil(images):
     """Convert numpy array(s) to PIL Image(s)."""
     if images.ndim == 3:
@@ -32,6 +35,10 @@ def numpy_to_pil(images):
 
 def check_safety(x_image, threshold=NSFW_THRESHOLD):
     """Run safety checker and return checked images + NSFW flags."""
+    if not ENABLE_NSFW_CHECK:
+        # Skip NSFW check entirely
+        return x_image, [False] * len(x_image)
+
     global safety_feature_extractor, safety_checker
 
     if safety_feature_extractor is None:
@@ -44,7 +51,6 @@ def check_safety(x_image, threshold=NSFW_THRESHOLD):
         clip_input=inputs.pixel_values
     )
 
-    # Apply threshold to reduce sensitivity
     if isinstance(has_nsfw_concept, torch.Tensor):
         has_nsfw_concept = has_nsfw_concept.float() > threshold
 
@@ -65,7 +71,7 @@ def censor_batch(x):
 
     return torch.from_numpy(x_checked_image).permute(0, 3, 1, 2)
 
-# ----- Script integration -----
+# ---------------- Script integration ----------------
 class NsfwCheckScript(scripts.Script):
     def title(self):
         return "NSFW Check with Custom Replacement"
@@ -76,4 +82,3 @@ class NsfwCheckScript(scripts.Script):
     def postprocess_batch(self, p, *args, **kwargs):
         images = kwargs['images']
         images[:] = censor_batch(images)[:]
-
