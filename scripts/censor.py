@@ -73,7 +73,7 @@ def censor_batch(x, prompt="", disable_safety=False, sensitivity=0.5, replacemen
                 # Draw bold red "NSFW" text
                 draw = ImageDraw.Draw(blurred)
                 try:
-                    font = ImageFont.truetype("arial.ttf", max(40, blurred.width // 10))
+                    font = ImageFont.truetype("arial.ttf", max(80, blurred.width // 10))
                 except:
                     font = ImageFont.load_default()
                 text = "NSFW"
@@ -111,6 +111,7 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
 
 
