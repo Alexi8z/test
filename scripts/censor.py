@@ -10,7 +10,8 @@ NSFW_MODEL_ID = "prithivMLmods/vit-mini-explicit-content"
 # List of explicit anime keywords for prompt-based filtering
 NSFW_KEYWORDS = [
     "nude", "nsfw", "pussy", "breasts", "hentai", "sex", "nipples",
-    "1girl naked", "1boy naked", "naked", "erotic", "cum"
+    "1girl naked", "1boy naked", "naked", "erotic", "cum", "dick",
+    "pussy", "lewd", "cumming", "sex", "porn"
 ]
 
 # Initialize global model
@@ -106,4 +107,5 @@ class AnimeNsfwCheckScript(scripts.Script):
         prompt = getattr(p, 'prompt', "")
 
         images[:] = censor_batch(images, prompt=prompt, disable_safety=disable_safety, sensitivity=sensitivity, replacement="blur")[:]
+
 
